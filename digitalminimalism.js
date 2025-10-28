@@ -8,7 +8,11 @@
 (function () {
 	"use strict";
 
-	console.log("digitalminimalism", location.host);
+	const OPTIONS = {
+		grayscale: true
+	};
+
+	console.log("[digitalminimalism]", "script by lis355", OPTIONS);
 
 	function querySelector(element, selector) {
 		return element && element.querySelector ? element.querySelector(selector) : null;
@@ -22,6 +26,21 @@
 		return element && element.textContent ? element.textContent.toLowerCase() : "";
 	}
 
+	function findElementBySelector(element, selector) {
+		if (!element) return null;
+
+		// проверим а не является САМ element искомым 
+		if (element.parentElement) {
+			const child = querySelector(element.parentElement, selector);
+			if (child === element) return child;
+		}
+
+		const child = querySelector(element, selector);
+		if (child) return child;
+
+		return null;
+	}
+
 	function getElementClassName(element) {
 		return element &&
 			element.className &&
@@ -30,23 +49,46 @@
 			: "";
 	}
 
-	function doWith(element, action) {
-		if (element &&
-			action) return action(element);
+	function show(element, reason) {
+		if (element) {
+			if (element.digitalminimalismHided) {
+				element.style.display = "";
+
+				element.digitalminimalismHided = false;
+
+				console.log("[digitalminimalism]", "element shown", element, reason);
+			}
+
+			return true;
+		}
 
 		return false;
 	}
 
+	function showIf(element, condition, reason) {
+		if (element &&
+			condition &&
+			condition(element)) return show(element, reason);
+
+		return false;
+	}
+
+	function showBySelector(element, selector, reason) {
+		return show(querySelector(element, selector), reason);
+	}
+
 	function hide(element, reason) {
-		doWith(element, element => {
-			element.style.display = "none";
+		if (element) {
+			if (!element.digitalminimalismHided) {
+				element.style.display = "none";
 
-			element.digitalminimalismHided = true;
+				element.digitalminimalismHided = true;
 
-			console.log("[digitalminimalism]", "element hided", element, reason);
+				console.log("[digitalminimalism]", "element hided", element, reason);
+			}
 
 			return true;
-		});
+		}
 
 		return false;
 	}
@@ -60,148 +102,251 @@
 	}
 
 	function hideBySelector(element, selector, reason) {
-		if (element instanceof HTMLElement) return hide(element.querySelector(selector), reason);
-
-		return false;
+		return hide(querySelector(element, selector), reason);
 	}
 
-	function processNewElement(element) {
-		processNewElementByDomain(element);
+	class SiteProcessor {
+		initialize() { }
+		processContentLoaded() { }
+		processNavigation(url) { }
+		processAddedElement(element) { }
+		processRemovedElement(element) { }
+		processMutatedElement(element) { }
 	}
 
-	const observer = new MutationObserver((mutationsList, observer) => {
-		for (const mutation of mutationsList) {
-			if (mutation.type === "childList") {
-				for (const node of mutation.addedNodes) processNewElement(node);
+	class YouTubeSiteProcessor extends SiteProcessor {
+		initialize() {
+			if (OPTIONS.grayscale) document.body.style.filter = "grayscale(1)";
+
+			this.processUrl();
+		}
+
+		processContentLoaded() {
+			this.processUrl();
+		}
+
+		processNavigation(url) {
+			this.processUrl(new URL(url));
+		}
+
+		processAddedElement(element) {
+		}
+
+		processRemovedElement(element) {
+		}
+
+		processMutatedElement(element) {
+			// console.log(element.id, getElementClassName(element), element);
+
+			const mainSuggestionsGridElement = findElementBySelector(element, ".style-scope.ytd-browse.grid[page-subtype=home]");
+			if (mainSuggestionsGridElement &&
+				!mainSuggestionsGridElement.digitalminimalismHided) {
+				this.processPage();
+			}
+
+			const leftPanelElement = findElementBySelector(element, "#secondary.style-scope.ytd-watch-flexy");
+			if (leftPanelElement &&
+				!leftPanelElement.digitalminimalismHided) {
+				this.processPage();
 			}
 		}
-	});
 
-	observer.observe(document.body, { childList: true, subtree: true });
+		processUrl(url = null) {
+			url = url || new URL(location.href);
+			if (this.lastUrl &&
+				this.lastUrl.href === url.href) return;
 
-	document.addEventListener("DOMContentLoaded", () => processNewElement(document));
+			console.log("[digitalminimalism]", "url changed", this.lastUrl && this.lastUrl.href, "-->", url.href);
 
-	processNewElement(document);
+			this.lastUrl = url;
 
-	/////////////////////////////////////////////////////////////////////////////////////////
+			this.processPage();
+		}
 
-	function processNewElementByDomain(element) {
-		if (location.host.includes("vk.com")) processVkNewElement(element);
-		else if (location.host.includes("instagram.com")) processInstagramNewElement(element);
-		else if (location.host.includes("youtube.com")) processYoutubeNewElement(element);
+		processPage() {
+			hideBySelector(document.body, "#home-page-skeleton", "skeleton");
+			hideBySelector(document.body, ".style-scope.ytd-browse.grid[page-subtype=home]");
+
+			if (this.lastUrl.pathname === "/") {
+				// home - hide all suggestions
+
+				this.setUpMainPage();
+			} else {
+				// show all except right suggestions panel
+
+				this.setUpWatchVideoPage();
+			}
+		}
+
+		setUpMainPage() {
+			// hideBySelector(document.body, "#page-manager", "main");
+		}
+
+		setUpWatchVideoPage() {
+			// showBySelector(document.body, "#page-manager", "main");
+
+			hideBySelector(document.body, "#secondary.style-scope.ytd-watch-flexy", "left panel");
+
+			const videoElement = querySelector(document.body, "video.video-stream.html5-main-video");
+			if (videoElement) {
+				videoElement.style.width = "";
+				videoElement.style.height = "auto";
+			}
+		}
 	}
 
-	function checkElementTextContentByWords(element, words) {
-		if (!element) return false;
+	function createSiteProcessor() {
+		// if (location.host.includes("vk.com")) return new VkSiteProcessor();
+		// else if (location.host.includes("instagram.com")) return new InstagramSiteProcessor();
+		// else
+		if (location.host.includes("youtube.com")) return new YouTubeSiteProcessor();
+		else return null;
+	}
 
-		// Чтобы скрипты не скрывали рекламу по ключевым словам, вк сделало хитрость: вставляет в слова "Реклама" невидимые буквы типа "Реклu8qxh7ама0+"
-		function advancedWordSearch(str, word) {
-			str = str.toLowerCase();
-			word = word.toLowerCase();
+	const siteProcessor = createSiteProcessor();
+	if (siteProcessor) {
+		document.addEventListener("DOMContentLoaded", () => siteProcessor.processContentLoaded());
+		window.navigation.addEventListener("navigate", event => siteProcessor.processNavigation(new URL(event.destination.url)));
 
-			let strLetterIndex = 0;
-			let wordLetterIndex = 0;
+		const observer = new MutationObserver((mutationsList, observer) => {
+			for (const mutation of mutationsList) {
+				if (mutation.type === "childList") {
+					for (const element of mutation.addedNodes) siteProcessor.processAddedElement(element);
+					for (const element of mutation.removedNodes) siteProcessor.processRemovedElement(element);
 
-			while (strLetterIndex < str.length &&
-				wordLetterIndex < word.length) {
-				const strLetter = str[strLetterIndex];
-				const wordLetter = word[wordLetterIndex];
-				if (strLetter === wordLetter) {
-					strLetterIndex++;
-					wordLetterIndex++;
-				} else {
-					strLetterIndex++;
+					siteProcessor.processMutatedElement(mutation.target);
+				} else if (mutation.type === "attributes") {
+					siteProcessor.processMutatedElement(mutation.target);
+				} else if (mutation.type === "characterData") {
+					siteProcessor.processMutatedElement(mutation.target);
 				}
 			}
+		});
 
-			return wordLetterIndex === word.length;
-		}
+		observer.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
 
-		const textContent = element.textContent;
-
-		return words.some(word => advancedWordSearch(textContent, word));
+		siteProcessor.initialize();
 	}
 
-	function checkElementTextContentByAds(element) {
-		return checkElementTextContentByWords(element, ["Реклама", "Ad"]);
-	}
+	// function processNewElementByDomain(element) {
+	// 	if (location.host.includes("vk.com")) processVkNewElement(element);
+	// 	else if (location.host.includes("instagram.com")) processInstagramNewElement(element);
+	// 	else if (location.host.includes("youtube.com")) processYoutubeNewElement(element);
+	// }
 
-	function processVkNewElement(element) {
-		// total grayscale
-		document.body.style.filter = "grayscale(1)";
+	// function pprocessNavigationByDomain(url) {
+	// 	if (location.host.includes("vk.com")) processVkNavigation(url);
+	// 	else if (location.host.includes("instagram.com")) processInstagramNavigation(url);
+	// 	else if (location.host.includes("youtube.com")) processYoutubeNavigation(url);
+	// }
 
-		// stories
-		if (hideBySelector(element, "[class*=stories_feed]", "stories feed")) return;
-		if (hideBySelector(element, "[class*=FeedSkeleton__storyList]", "stories feed skeleton")) return;
+	// function checkElementTextContentByWords(element, words) {
+	// 	if (!element) return false;
 
-		// feed
-		let wasFeedElement = false;
-		if (processVkFeedRow(element)) {
-			wasFeedElement = true;
-		} else {
-			querySelectorAll(element.parentElement, ".feed_row")
-				.forEach(element => {
-					if (processVkFeedRow(element)) wasFeedElement = true;
-				});
-		}
+	// 	// Чтобы скрипты не скрывали рекламу по ключевым словам, вк сделало хитрость: вставляет в слова "Реклама" невидимые буквы типа "Реклu8qxh7ама0+"
+	// 	function advancedWordSearch(str, word) {
+	// 		str = str.toLowerCase();
+	// 		word = word.toLowerCase();
 
-		if (wasFeedElement) {
-			// надо сделать сортировку чтобы пустые записи были снизу, а потом их удалить
-			const feedRowsElement = document.querySelector("#feed_rows");
-			const feedRowElements = Array.from(feedRowsElement);
+	// 		let strLetterIndex = 0;
+	// 		let wordLetterIndex = 0;
 
-			feedRowElements.sort((elementA, elementB) => {
-				const aHided = elementA.digitalminimalismHided
-				const bHided = elementB.digitalminimalismHided
+	// 		while (strLetterIndex < str.length &&
+	// 			wordLetterIndex < word.length) {
+	// 			const strLetter = str[strLetterIndex];
+	// 			const wordLetter = word[wordLetterIndex];
+	// 			if (strLetter === wordLetter) {
+	// 				strLetterIndex++;
+	// 				wordLetterIndex++;
+	// 			} else {
+	// 				strLetterIndex++;
+	// 			}
+	// 		}
 
-				if (aHided && !bHided) return 1;
-				if (!aHided && bHided) return -1;
-				return 0;
-			});
+	// 		return wordLetterIndex === word.length;
+	// 	}
 
-			// Переставляем элементы в отсортированном порядке
-			feedRowElements.forEach(element => feedRowsElement.appendChild(element));
-		}
-	}
+	// 	const textContent = element.textContent;
 
-	function processVkFeedRow(element) {
-		if (element.minimaled) return true;
+	// 	return words.some(word => advancedWordSearch(textContent, word));
+	// }
 
-		if (getElementClassName(element).includes("vkitButton")
-			&& getElementTextContentInLowerCase(element).includes("follow")) {
-			let parentElement = element.parentElement;
-			while (parentElement &&
-				!getElementClassName(parentElement).includes("feed_row")) parentElement = parentElement.parentElement;
+	// function checkElementTextContentByAds(element) {
+	// 	return checkElementTextContentByWords(element, ["Реклама", "Ad"]);
+	// }
 
-			if (parentElement) return hideVkFeedRow(parentElement, "feed suggestions");
-		}
+	// function processVkNewElement(element) {
+	// 	// total grayscale
+	// 	document.body.style.filter = "grayscale(1)";
 
-		if (checkElementTextContentByAds(querySelector(element, ".PostHeaderSubtitle"))) return hide(element, "feed ads");
+	// 	// stories
+	// 	if (hideBySelector(element, "[class*=stories_feed]", "stories feed")) return;
+	// 	if (hideBySelector(element, "[class*=FeedSkeleton__storyList]", "stories feed skeleton")) return;
 
-		if (getElementTextContentInLowerCase(element).includes("follow")) return hideVkFeedRow(element, "feed suggestions");
+	// 	// feed
+	// 	let wasFeedElement = false;
+	// 	if (processVkFeedRow(element)) {
+	// 		wasFeedElement = true;
+	// 	} else {
+	// 		querySelectorAll(element.parentElement, ".feed_row")
+	// 			.forEach(element => {
+	// 				if (processVkFeedRow(element)) wasFeedElement = true;
+	// 			});
+	// 	}
 
-		if (querySelector(element, "[class*=Recommendation]")) return hide(element, "feed recommendations");
+	// 	if (wasFeedElement) {
+	// 		// надо сделать сортировку чтобы пустые записи были снизу, а потом их удалить
+	// 		const feedRowsElement = querySelector(document, "#feed_rows");
+	// 		const feedRowElements = Array.from(feedRowsElement);
 
-		return false;
-	}
+	// 		feedRowElements.sort((elementA, elementB) => {
+	// 			const aHided = elementA.digitalminimalismHided
+	// 			const bHided = elementB.digitalminimalismHided
 
-	function hideVkFeedRow(element, reason) {
-		element.style.height = `${element.clientWidth}px`;
-		element.innerHTML = "";
-		element.digitalminimalismHided = true;
+	// 			if (aHided && !bHided) return 1;
+	// 			if (!aHided && bHided) return -1;
+	// 			return 0;
+	// 		});
 
-		console.log("[digitalminimalism]", "element hided", element, reason);
+	// 		// Переставляем элементы в отсортированном порядке
+	// 		feedRowElements.forEach(element => feedRowsElement.appendChild(element));
+	// 	}
+	// }
 
-		return true;
-	}
+	// function processVkFeedRow(element) {
+	// 	if (element.minimaled) return true;
 
-	function processInstagramNewElement(element) {
-		// total grayscale
-		document.body.style.filter = "grayscale(1)";
-	}
+	// 	if (getElementClassName(element).includes("vkitButton")
+	// 		&& getElementTextContentInLowerCase(element).includes("follow")) {
+	// 		let parentElement = element.parentElement;
+	// 		while (parentElement &&
+	// 			!getElementClassName(parentElement).includes("feed_row")) parentElement = parentElement.parentElement;
 
-	function processYoutubeNewElement(element) {
-		// total grayscale
-		document.body.style.filter = "grayscale(1)";
-	}
+	// 		if (parentElement) return hideVkFeedRow(parentElement, "feed suggestions");
+	// 	}
+
+	// 	if (checkElementTextContentByAds(querySelector(element, ".PostHeaderSubtitle"))) return hide(element, "feed ads");
+
+	// 	if (getElementTextContentInLowerCase(element).includes("follow")) return hideVkFeedRow(element, "feed suggestions");
+
+	// 	if (querySelector(element, "[class*=Recommendation]")) return hide(element, "feed recommendations");
+
+	// 	return false;
+	// }
+
+	// function hideVkFeedRow(element, reason) {
+	// 	element.style.height = `${element.clientWidth}px`;
+	// 	element.innerHTML = "";
+	// 	element.digitalminimalismHided = true;
+
+	// 	console.log("[digitalminimalism]", "element hided", element, reason);
+
+	// 	return true;
+	// }
+
+	// function processInstagramNewElement(element) {
+	// 	// total grayscale
+	// 	document.body.style.filter = "grayscale(1)";
+
+	// }
 })();
