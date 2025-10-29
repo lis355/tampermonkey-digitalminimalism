@@ -188,6 +188,8 @@
 				!leftPanelElement.digitalminimalismHided) {
 				this.processPage();
 			}
+
+			hide(findElementBySelector(element, ".ytp-fullscreen-grid"), "suggestions on video end");
 		}
 
 		processUrl(url = null) {

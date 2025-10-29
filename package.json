@@ -1,0 +1,11 @@
+{
+	"name": "@lis355/tampermonkey-digitalminimalism",
+	"version": "1.1.0",
+	"repository": {
+		"url": "git+https://github.com/lis355/tampermonkey-digitalminimalism.git"
+	},
+	"license": "MIT",
+	"devDependencies": {
+		"eslint": "^9.38.0"
+	}
+}
